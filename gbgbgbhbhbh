@@ -1,0 +1,1240 @@
+--=============================================================
+--  土豆脚本 v8.0  (UI 美化版)
+--  第一段 / 共两段
+--=============================================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+local LP = Players.LocalPlayer
+
+local Config = {
+    ESP = false, Team = true,
+    Fly = false, FlySpeed = 50,
+    Speed = false, SpeedVal = 30,
+    JumpEnabled = false, JumpValue = 50,
+    RotateEnabled = false, RotateSpeed = 90,
+}
+
+local THEME = {
+    BG = Color3.fromRGB(24, 24, 28),
+    SIDEBAR = Color3.fromRGB(18, 18, 22),
+    TOPBAR = Color3.fromRGB(20, 20, 24),
+    ACCENT = Color3.fromRGB(74, 158, 255),
+    GREEN = Color3.fromRGB(58, 208, 125),
+    OFF = Color3.fromRGB(58, 58, 64),
+    TRACK = Color3.fromRGB(38, 38, 44),
+    TEXT = Color3.fromRGB(230, 230, 235),
+    SUBTEXT = Color3.fromRGB(140, 140, 150),
+    BORDER = Color3.fromRGB(52, 52, 58),
+}
+
+local guiParent = LP:WaitForChild("PlayerGui")
+
+pcall(function()
+    local old = guiParent:FindFirstChild("PotatoScript")
+    if old then old:Destroy() end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "PotatoScript"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.DisplayOrder = 999
+gui.Parent = guiParent
+
+local function getTeamColor(plr)
+    if plr.Team then return plr.Team.TeamColor.Color end
+    return Color3.fromRGB(255, 255, 255)
+end
+
+local function isSameTeam(plr)
+    if not plr.Team then return false end
+    if not LP.Team then return false end
+    return plr.Team == LP.Team
+end
+
+local espCache = {}
+
+local function createESP(plr)
+    if espCache[plr] then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "PotatoESP"
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillColor = getTeamColor(plr)
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = Color3.new(1, 1, 1)
+    hl.OutlineTransparency = 0
+    hl.Parent = gui
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "PotatoName"
+    bb.Size = UDim2.new(0, 100, 0, 20)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Parent = gui
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = getTeamColor(plr)
+    label.TextStrokeTransparency = 1
+    label.Text = plr.Name
+    label.TextScaled = true
+    label.Font = Enum.Font.Gotham
+    label.Parent = bb
+
+    espCache[plr] = { h = hl, bb = bb, label = label }
+end
+
+local function removeESP(plr)
+    local e = espCache[plr]
+    if e then
+        if e.h then e.h:Destroy() end
+        if e.bb then e.bb:Destroy() end
+        espCache[plr] = nil
+    end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LP then createESP(p) end
+end
+Players.PlayerAdded:Connect(function(p) if p ~= LP then createESP(p) end end)
+Players.PlayerRemoving:Connect(removeESP)
+
+RunService.RenderStepped:Connect(function()
+    if not Config.ESP then
+        for _, e in pairs(espCache) do
+            e.h.Adornee = nil
+            e.bb.Adornee = nil
+        end
+        return
+    end
+    for plr, e in pairs(espCache) do
+        local char = plr.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if char and char:FindFirstChild("HumanoidRootPart") and hum and hum.Health > 0 then
+            local color = getTeamColor(plr)
+            e.h.FillColor = color
+            e.label.TextColor3 = color
+            local same = Config.Team and isSameTeam(plr)
+            e.h.FillTransparency = same and 0.85 or 0.5
+            e.bb.Enabled = not same
+            e.h.Adornee = char
+            e.bb.Adornee = char.HumanoidRootPart
+        else
+            e.h.Adornee = nil
+            e.bb.Adornee = nil
+        end
+    end
+end)
+
+local function applySpeed()
+    if Config.Fly then return end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function()
+        if Config.Speed then
+            hum.WalkSpeed = Config.SpeedVal
+        else
+            hum.WalkSpeed = 16
+        end
+    end)
+end
+
+RunService.Heartbeat:Connect(function()
+    if not Config.Speed or Config.Fly then return end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed ~= Config.SpeedVal then
+        pcall(function() hum.WalkSpeed = Config.SpeedVal end)
+    end
+end)
+
+local function applyJump()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function() hum.UseJumpPower = true end)
+    pcall(function()
+        if Config.JumpEnabled then
+            hum.JumpPower = Config.JumpValue
+        else
+            hum.JumpPower = 50
+        end
+    end)
+end
+
+local rotateConn = nil
+
+local function stopRotate()
+    if rotateConn then
+        rotateConn:Disconnect()
+        rotateConn = nil
+    end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.AutoRotate = true end)
+    end
+end
+
+local function startRotate()
+    stopRotate()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.AutoRotate = false end)
+    end
+    rotateConn = RunService.RenderStepped:Connect(function(dt)
+        if not Config.RotateEnabled then return end
+        if Config.Fly then return end
+        local c = LP.Character
+        if not c then return end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if not root or not h then return end
+        pcall(function()
+            if h.AutoRotate ~= false then h.AutoRotate = false end
+        end)
+        local step = math.rad(Config.RotateSpeed) * (dt or 0.016)
+        pcall(function()
+            root.CFrame = root.CFrame * CFrame.Angles(0, step, 0)
+        end)
+    end)
+end
+
+local function updateRotate()
+    if Config.RotateEnabled then
+        startRotate()
+    else
+        stopRotate()
+    end
+end
+local function getTeamColor(plr)
+    if plr.Team then return plr.Team.TeamColor.Color end
+    return Color3.fromRGB(255, 255, 255)
+end
+
+local function isSameTeam(plr)
+    if not plr.Team then return false end
+    if not LP.Team then return false end
+    return plr.Team == LP.Team
+end
+
+local espCache = {}
+
+local function createESP(plr)
+    if espCache[plr] then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "PotatoESP"
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.FillColor = getTeamColor(plr)
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = Color3.new(1, 1, 1)
+    hl.OutlineTransparency = 0
+    hl.Parent = gui
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "PotatoName"
+    bb.Size = UDim2.new(0, 100, 0, 20)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+    bb.Parent = gui
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = getTeamColor(plr)
+    label.TextStrokeTransparency = 1
+    label.Text = plr.Name
+    label.TextScaled = true
+    label.Font = Enum.Font.Gotham
+    label.Parent = bb
+
+    espCache[plr] = { h = hl, bb = bb, label = label }
+end
+
+local function removeESP(plr)
+    local e = espCache[plr]
+    if e then
+        if e.h then e.h:Destroy() end
+        if e.bb then e.bb:Destroy() end
+        espCache[plr] = nil
+    end
+end
+
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LP then createESP(p) end
+end
+Players.PlayerAdded:Connect(function(p) if p ~= LP then createESP(p) end end)
+Players.PlayerRemoving:Connect(removeESP)
+RunService.RenderStepped:Connect(function()
+    if not Config.ESP then
+        for _, e in pairs(espCache) do
+            e.h.Adornee = nil
+            e.bb.Adornee = nil
+        end
+        return
+    end
+    for plr, e in pairs(espCache) do
+        local char = plr.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if char and char:FindFirstChild("HumanoidRootPart") and hum and hum.Health > 0 then
+            local color = getTeamColor(plr)
+            e.h.FillColor = color
+            e.label.TextColor3 = color
+            local same = Config.Team and isSameTeam(plr)
+            e.h.FillTransparency = same and 0.85 or 0.5
+            e.bb.Enabled = not same
+            e.h.Adornee = char
+            e.bb.Adornee = char.HumanoidRootPart
+        else
+            e.h.Adornee = nil
+            e.bb.Adornee = nil
+        end
+    end
+end)
+
+local function applySpeed()
+    if Config.Fly then return end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function()
+        if Config.Speed then
+            hum.WalkSpeed = Config.SpeedVal
+        else
+            hum.WalkSpeed = 16
+        end
+    end)
+end
+
+RunService.Heartbeat:Connect(function()
+    if not Config.Speed or Config.Fly then return end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.WalkSpeed ~= Config.SpeedVal then
+        pcall(function() hum.WalkSpeed = Config.SpeedVal end)
+    end
+end)
+local function applyJump()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    pcall(function() hum.UseJumpPower = true end)
+    pcall(function()
+        if Config.JumpEnabled then
+            hum.JumpPower = Config.JumpValue
+        else
+            hum.JumpPower = 50
+        end
+    end)
+end
+
+local rotateConn = nil
+
+local function stopRotate()
+    if rotateConn then
+        rotateConn:Disconnect()
+        rotateConn = nil
+    end
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.AutoRotate = true end)
+    end
+end
+
+local function startRotate()
+    stopRotate()
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function() hum.AutoRotate = false end)
+    end
+    rotateConn = RunService.RenderStepped:Connect(function(dt)
+        if not Config.RotateEnabled then return end
+        if Config.Fly then return end
+        local c = LP.Character
+        if not c then return end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if not root or not h then return end
+        pcall(function()
+            if h.AutoRotate ~= false then h.AutoRotate = false end
+        end)
+        local step = math.rad(Config.RotateSpeed) * (dt or 0.016)
+        pcall(function()
+            root.CFrame = root.CFrame * CFrame.Angles(0, step, 0)
+        end)
+    end)
+end
+
+local function updateRotate()
+    if Config.RotateEnabled then
+        startRotate()
+    else
+        stopRotate()
+    end
+end
+local flyConn = nil
+local flyPos = nil
+local flyLook = nil
+local flyUp = false
+local flyDown = false
+local flyUI = nil
+local flySwitchBtn = nil
+local flySpeedLabel = nil
+local flyFill = nil
+local mainFlyToggle = nil
+
+local function stopFly()
+    if flyConn then
+        flyConn:Disconnect()
+        flyConn = nil
+    end
+    flyUp = false
+    flyDown = false
+    flyPos = nil
+    flyLook = nil
+    local char = LP.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        pcall(function()
+            hum.AutoRotate = true
+            hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, true)
+        end)
+        pcall(function()
+            if Config.Speed then
+                hum.WalkSpeed = Config.SpeedVal
+            else
+                hum.WalkSpeed = 16
+            end
+        end)
+    end
+end
+
+local function startFly()
+    stopFly()
+    local char = LP.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+    pcall(function() hrp:SetNetworkOwner(LP) end)
+    flyPos = hrp.Position
+    do
+        local camLook = workspace.CurrentCamera.CFrame.LookVector
+        local flat = Vector3.new(camLook.X, 0, camLook.Z)
+        if flat.Magnitude > 0.01 then
+            flyLook = flat.Unit
+        else
+            flyLook = Vector3.new(0, 0, -1)
+        end
+    end
+    pcall(function()
+        hum.AutoRotate = false
+        hum:SetStateEnabled(Enum.HumanoidStateType.Freefall, false)
+    end)
+    flyConn = RunService.Heartbeat:Connect(function(dt)
+        if not Config.Fly then return end
+        local c = LP.Character
+        if not c then return end
+        local root = c:FindFirstChild("HumanoidRootPart")
+        local h = c:FindFirstChildOfClass("Humanoid")
+        if not root or not h then return end
+        pcall(function()
+            if h.AutoRotate ~= false then h.AutoRotate = false end
+        end)
+        if not flyPos then flyPos = root.Position end
+        local fwd = 0
+        local side = 0
+        local md = h.MoveDirection
+        if md and md.Magnitude > 0.01 then
+            local cam = workspace.CurrentCamera
+            local camLook = Vector3.new(cam.CFrame.LookVector.X, 0, cam.CFrame.LookVector.Z)
+            local camRight = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
+            if camLook.Magnitude > 0.01 then camLook = camLook.Unit else camLook = Vector3.new(0, 0, -1) end
+            if camRight.Magnitude > 0.01 then camRight = camRight.Unit else camRight = Vector3.new(1, 0, 0) end
+            local flat = Vector3.new(md.X, 0, md.Z)
+            if flat.Magnitude > 0.01 then
+                flat = flat.Unit
+                fwd = flat:Dot(camLook)
+                side = flat:Dot(camRight)
+            end
+        end
+        if math.abs(fwd) < 0.01 and math.abs(side) < 0.01 then
+            local mv = Vector3.new(0, 0, 0)
+            pcall(function() mv = UIS:GetMoveVector() end)
+            if mv.Magnitude > 0.01 then
+                fwd = mv.Z
+                side = mv.X
+            end
+        end
+        if UIS:IsKeyDown(Enum.KeyCode.W) then fwd = fwd + 1 end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then fwd = fwd - 1 end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then side = side + 1 end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then side = side - 1 end
+        if fwd > 1 then fwd = 1 elseif fwd < -1 then fwd = -1 end
+        if side > 1 then side = 1 elseif side < -1 then side = -1 end
+        local cam = workspace.CurrentCamera
+        local look = cam.CFrame.LookVector
+        local right = cam.CFrame.RightVector
+        local move = look * fwd + right * side
+        if flyUp then move = move + Vector3.new(0, 1, 0) end
+        if flyDown then move = move - Vector3.new(0, 1, 0) end
+        if move.Magnitude > 0 then
+            flyPos = flyPos + move.Unit * Config.FlySpeed * dt
+        end
+        local flatLook = Vector3.new(look.X, 0, look.Z)
+        if flatLook.Magnitude > 0.01 then
+            flyLook = flatLook.Unit
+        end
+        pcall(function() root.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end)
+        pcall(function() root.Velocity = Vector3.new(0, 0, 0) end)
+        pcall(function() root.AssemblyAngularVelocity = Vector3.new(0, 0, 0) end)
+        pcall(function() root.RotVelocity = Vector3.new(0, 0, 0) end)
+        root.CFrame = CFrame.new(flyPos, flyPos + flyLook)
+    end)
+end
+
+local function setFlyEnabled(v)
+    Config.Fly = v
+    if v then startFly() else stopFly() end
+    if flySwitchBtn then
+        flySwitchBtn.Text = v and "ON" or "OFF"
+        flySwitchBtn.BackgroundColor3 = v and THEME.GREEN or THEME.OFF
+    end
+    if mainFlyToggle then
+        mainFlyToggle.Text = v and "ON" or "OFF"
+        mainFlyToggle.BackgroundColor3 = v and THEME.GREEN or THEME.OFF
+    end
+    if v and flyUI then flyUI.Visible = true end
+end
+local function bindDrag(obj, onStart, onMove)
+    local dragging = false
+    local startPos = nil
+    local startValue = nil
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            startPos = input.Position
+            if onStart then startValue = onStart() end
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            onMove(input.Position, startPos, startValue)
+        end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+local function createSlider(parent, label, min, max, default, isFloat, cb)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 44)
+    f.BackgroundTransparency = 1
+    f.ZIndex = 5
+    f.Parent = parent
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1, 0, 0, 16)
+    t.BackgroundTransparency = 1
+    t.TextColor3 = THEME.TEXT
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.Font = Enum.Font.GothamMedium
+    t.TextSize = 13
+    t.Text = label .. ": " .. tostring(default)
+    t.ZIndex = 6
+    t.Parent = f
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 0, 8)
+    bar.Position = UDim2.new(0, 0, 0, 26)
+    bar.BackgroundColor3 = THEME.TRACK
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 6
+    bar.Active = true
+    bar.Parent = f
+
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(1, 0)
+    bc.Parent = bar
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = THEME.ACCENT
+    fill.BorderSizePixel = 0
+    fill.ZIndex = 7
+    fill.Parent = bar
+
+    local fc = Instance.new("UICorner")
+    fc.CornerRadius = UDim.new(1, 0)
+    fc.Parent = fill
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.AnchorPoint = Vector2.new(0.5, 0.5)
+    knob.Position = UDim2.new((default - min) / (max - min), 0, 0.5, 0)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    knob.BorderSizePixel = 0
+    knob.ZIndex = 8
+    knob.Parent = bar
+
+    local kc = Instance.new("UICorner")
+    kc.CornerRadius = UDim.new(1, 0)
+    kc.Parent = knob
+
+    local dragging = false
+    local function update(x)
+        local rel = (x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X
+        if rel < 0 then rel = 0 elseif rel > 1 then rel = 1 end
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        local v = min + (max - min) * rel
+        if not isFloat then v = math.floor(v + 0.5) end
+        t.Text = label .. ": " .. tostring(v)
+        cb(v)
+    end
+
+    bar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            update(input.Position.X)
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input.Position.X)
+        end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    return { bar = bar, fill = fill, knob = knob, label = t }
+end
+local function createToggle(parent, label, default, cb)
+    local f = Instance.new("Frame")
+    f.Size = UDim2.new(1, 0, 0, 36)
+    f.BackgroundTransparency = 1
+    f.ZIndex = 5
+    f.Parent = parent
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(0.6, 0, 1, 0)
+    t.BackgroundTransparency = 1
+    t.TextColor3 = THEME.TEXT
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.Font = Enum.Font.GothamMedium
+    t.TextSize = 13
+    t.Text = label
+    t.ZIndex = 6
+    t.Parent = f
+
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(0, 62, 0, 28)
+    b.Position = UDim2.new(1, -62, 0, 4)
+    b.BackgroundColor3 = default and THEME.GREEN or THEME.OFF
+    b.Text = default and "ON" or "OFF"
+    b.TextColor3 = Color3.new(1, 1, 1)
+    b.TextSize = 12
+    b.Font = Enum.Font.GothamBold
+    b.BorderSizePixel = 0
+    b.ZIndex = 6
+    b.Parent = f
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(1, 0)
+    c.Parent = b
+
+    b.MouseButton1Click:Connect(function()
+        local nxt = not (b.Text == "ON")
+        b.Text = nxt and "ON" or "OFF"
+        b.BackgroundColor3 = nxt and THEME.GREEN or THEME.OFF
+        cb(nxt)
+    end)
+    return b
+end
+
+local cam = workspace.CurrentCamera
+local vp = cam and cam.ViewportSize or Vector2.new(1280, 720)
+local WIN_W = math.min(460, vp.X - 40)
+local WIN_H = math.min(300, vp.Y - 40)
+if WIN_W < 300 then WIN_W = 300 end
+if WIN_H < 220 then WIN_H = 220 end
+
+local window = Instance.new("Frame")
+window.Name = "MainWindow"
+window.Size = UDim2.new(0, WIN_W, 0, WIN_H)
+window.Position = UDim2.new(0.5, -WIN_W/2, 0.5, -WIN_H/2)
+window.BackgroundColor3 = THEME.BG
+window.BorderSizePixel = 0
+window.Visible = true
+window.Active = true
+window.Parent = gui
+
+local winCorner = Instance.new("UICorner")
+winCorner.CornerRadius = UDim.new(0, 12)
+winCorner.Parent = window
+
+local winStroke = Instance.new("UIStroke")
+winStroke.Color = THEME.BORDER
+winStroke.Thickness = 1
+winStroke.Parent = window
+
+local topbar = Instance.new("Frame")
+topbar.Size = UDim2.new(1, 0, 0, 38)
+topbar.BackgroundColor3 = THEME.TOPBAR
+topbar.BorderSizePixel = 0
+topbar.ZIndex = 5
+topbar.Active = true
+topbar.Parent = window
+
+local tcb = Instance.new("UICorner")
+tcb.CornerRadius = UDim.new(0, 12)
+tcb.Parent = topbar
+
+local tcm = Instance.new("Frame")
+tcm.Size = UDim2.new(1, 0, 0, 12)
+tcm.Position = UDim2.new(0, 0, 1, -12)
+tcm.BackgroundColor3 = THEME.TOPBAR
+tcm.BorderSizePixel = 0
+tcm.ZIndex = 5
+tcm.Parent = topbar
+
+local logo = Instance.new("Frame")
+logo.Size = UDim2.new(0, 4, 0, 18)
+logo.Position = UDim2.new(0, 12, 0, 10)
+logo.BackgroundColor3 = THEME.ACCENT
+logo.BorderSizePixel = 0
+logo.ZIndex = 6
+logo.Parent = topbar
+
+local lc = Instance.new("UICorner")
+lc.CornerRadius = UDim.new(1, 0)
+lc.Parent = logo
+
+local topTitle = Instance.new("TextLabel")
+topTitle.Size = UDim2.new(1, -70, 1, 0)
+topTitle.Position = UDim2.new(0, 24, 0, 0)
+topTitle.BackgroundTransparency = 1
+topTitle.Text = "土豆脚本"
+topTitle.TextColor3 = THEME.TEXT
+topTitle.TextSize = 15
+topTitle.Font = Enum.Font.GothamBold
+topTitle.TextXAlignment = Enum.TextXAlignment.Left
+topTitle.ZIndex = 6
+topTitle.Parent = topbar
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 26, 0, 26)
+minBtn.Position = UDim2.new(1, -34, 0, 6)
+minBtn.BackgroundColor3 = THEME.OFF
+minBtn.Text = "-"
+minBtn.TextColor3 = THEME.TEXT
+minBtn.TextSize = 18
+minBtn.Font = Enum.Font.GothamBold
+minBtn.BorderSizePixel = 0
+minBtn.ZIndex = 6
+minBtn.Parent = topbar
+
+local mbc = Instance.new("UICorner")
+mbc.CornerRadius = UDim.new(0, 6)
+mbc.Parent = minBtn
+
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 110, 1, -38)
+sidebar.Position = UDim2.new(0, 0, 0, 38)
+sidebar.BackgroundColor3 = THEME.SIDEBAR
+sidebar.BorderSizePixel = 0
+sidebar.ZIndex = 5
+sidebar.Parent = window
+
+local sbl = Instance.new("UIListLayout")
+sbl.Padding = UDim.new(0, 3)
+sbl.SortOrder = Enum.SortOrder.LayoutOrder
+sbl.Parent = sidebar
+
+local sbp = Instance.new("UIPadding")
+sbp.PaddingTop = UDim.new(0, 8)
+sbp.PaddingLeft = UDim.new(0, 6)
+sbp.PaddingRight = UDim.new(0, 6)
+sbp.Parent = sidebar
+
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(0, 1, 1, -38)
+divider.Position = UDim2.new(0, 110, 0, 38)
+divider.BackgroundColor3 = THEME.BORDER
+divider.BorderSizePixel = 0
+divider.ZIndex = 7
+divider.Parent = window
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -130, 1, -60)
+content.Position = UDim2.new(0, 120, 0, 52)
+content.BackgroundTransparency = 1
+content.ZIndex = 5
+content.Parent = window
+
+local cLayout = Instance.new("UIListLayout")
+cLayout.Padding = UDim.new(0, 6)
+cLayout.SortOrder = Enum.SortOrder.LayoutOrder
+cLayout.Parent = content
+
+local function clearContent()
+    for _, c in ipairs(content:GetChildren()) do
+        if not c:IsA("UIListLayout") then
+            c:Destroy()
+        end
+    end
+end
+flyUI = Instance.new("Frame")
+flyUI.Name = "FlyUI"
+flyUI.Size = UDim2.new(0, 160, 0, 132)
+flyUI.Position = UDim2.new(0, 10, 0, 60)
+flyUI.BackgroundColor3 = THEME.BG
+flyUI.BorderSizePixel = 0
+flyUI.Visible = false
+flyUI.Active = true
+flyUI.ZIndex = 20
+flyUI.Parent = gui
+
+local fuc = Instance.new("UICorner")
+fuc.CornerRadius = UDim.new(0, 10)
+fuc.Parent = flyUI
+
+local fus = Instance.new("UIStroke")
+fus.Color = THEME.BORDER
+fus.Parent = flyUI
+
+local flyTitle = Instance.new("TextLabel")
+flyTitle.Size = UDim2.new(1, -34, 0, 22)
+flyTitle.Position = UDim2.new(0, 12, 0, 4)
+flyTitle.BackgroundTransparency = 1
+flyTitle.Text = "飞行"
+flyTitle.TextColor3 = THEME.TEXT
+flyTitle.TextSize = 13
+flyTitle.Font = Enum.Font.GothamBold
+flyTitle.TextXAlignment = Enum.TextXAlignment.Left
+flyTitle.ZIndex = 21
+flyTitle.Parent = flyUI
+
+local closeFly = Instance.new("TextButton")
+closeFly.Size = UDim2.new(0, 22, 0, 22)
+closeFly.Position = UDim2.new(1, -28, 0, 4)
+closeFly.BackgroundColor3 = THEME.OFF
+closeFly.Text = "X"
+closeFly.TextColor3 = THEME.TEXT
+closeFly.TextSize = 13
+closeFly.Font = Enum.Font.GothamBold
+closeFly.BorderSizePixel = 0
+closeFly.ZIndex = 21
+closeFly.Parent = flyUI
+
+local cfc = Instance.new("UICorner")
+cfc.CornerRadius = UDim.new(0, 6)
+cfc.Parent = closeFly
+
+local flySwitchLabel = Instance.new("TextLabel")
+flySwitchLabel.Size = UDim2.new(0, 60, 0, 22)
+flySwitchLabel.Position = UDim2.new(0, 12, 0, 30)
+flySwitchLabel.BackgroundTransparency = 1
+flySwitchLabel.Text = "启用"
+flySwitchLabel.TextColor3 = THEME.SUBTEXT
+flySwitchLabel.TextSize = 12
+flySwitchLabel.Font = Enum.Font.GothamMedium
+flySwitchLabel.TextXAlignment = Enum.TextXAlignment.Left
+flySwitchLabel.ZIndex = 21
+flySwitchLabel.Parent = flyUI
+
+flySwitchBtn = Instance.new("TextButton")
+flySwitchBtn.Size = UDim2.new(0, 52, 0, 22)
+flySwitchBtn.Position = UDim2.new(1, -64, 0, 30)
+flySwitchBtn.BackgroundColor3 = THEME.OFF
+flySwitchBtn.Text = "OFF"
+flySwitchBtn.TextColor3 = Color3.new(1, 1, 1)
+flySwitchBtn.TextSize = 11
+flySwitchBtn.Font = Enum.Font.GothamBold
+flySwitchBtn.BorderSizePixel = 0
+flySwitchBtn.ZIndex = 21
+flySwitchBtn.Parent = flyUI
+
+local fsc = Instance.new("UICorner")
+fsc.CornerRadius = UDim.new(1, 0)
+fsc.Parent = flySwitchBtn
+
+flySpeedLabel = Instance.new("TextLabel")
+flySpeedLabel.Size = UDim2.new(1, -24, 0, 12)
+flySpeedLabel.Position = UDim2.new(0, 12, 0, 58)
+flySpeedLabel.BackgroundTransparency = 1
+flySpeedLabel.Text = "速度: " .. Config.FlySpeed
+flySpeedLabel.TextColor3 = THEME.SUBTEXT
+flySpeedLabel.TextSize = 11
+flySpeedLabel.Font = Enum.Font.GothamMedium
+flySpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
+flySpeedLabel.ZIndex = 21
+flySpeedLabel.Parent = flyUI
+
+local flyBar = Instance.new("Frame")
+flyBar.Size = UDim2.new(1, -24, 0, 8)
+flyBar.Position = UDim2.new(0, 12, 0, 74)
+flyBar.BackgroundColor3 = THEME.TRACK
+flyBar.BorderSizePixel = 0
+flyBar.Active = true
+flyBar.ZIndex = 21
+flyBar.Parent = flyUI
+
+local fbc = Instance.new("UICorner")
+fbc.CornerRadius = UDim.new(1, 0)
+fbc.Parent = flyBar
+
+flyFill = Instance.new("Frame")
+flyFill.Size = UDim2.new((Config.FlySpeed - 10) / (300 - 10), 0, 1, 0)
+flyFill.BackgroundColor3 = THEME.ACCENT
+flyFill.BorderSizePixel = 0
+flyFill.ZIndex = 22
+flyFill.Parent = flyBar
+
+local ffc = Instance.new("UICorner")
+ffc.CornerRadius = UDim.new(1, 0)
+ffc.Parent = flyFill
+
+local upBtn = Instance.new("TextButton")
+upBtn.Size = UDim2.new(0, 66, 0, 32)
+upBtn.Position = UDim2.new(0, 12, 0, 90)
+upBtn.BackgroundColor3 = THEME.GREEN
+upBtn.Text = "上 升"
+upBtn.TextColor3 = Color3.new(1, 1, 1)
+upBtn.TextSize = 12
+upBtn.Font = Enum.Font.GothamBold
+upBtn.BorderSizePixel = 0
+upBtn.ZIndex = 22
+upBtn.Parent = flyUI
+
+local ubc = Instance.new("UICorner")
+ubc.CornerRadius = UDim.new(0, 8)
+ubc.Parent = upBtn
+
+local downBtn = Instance.new("TextButton")
+downBtn.Size = UDim2.new(0, 66, 0, 32)
+downBtn.Position = UDim2.new(1, -78, 0, 90)
+downBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+downBtn.Text = "下 降"
+downBtn.TextColor3 = Color3.new(1, 1, 1)
+downBtn.TextSize = 12
+downBtn.Font = Enum.Font.GothamBold
+downBtn.BorderSizePixel = 0
+downBtn.ZIndex = 22
+downBtn.Parent = flyUI
+
+local dbc = Instance.new("UICorner")
+dbc.CornerRadius = UDim.new(0, 8)
+dbc.Parent = downBtn
+local function bindUp(btn)
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            flyUp = true
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            flyUp = false
+        end
+    end)
+    btn.MouseButton1Down:Connect(function() flyUp = true end)
+    btn.MouseButton1Up:Connect(function() flyUp = false end)
+    btn.MouseLeave:Connect(function() flyUp = false end)
+end
+
+local function bindDown(btn)
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            flyDown = true
+        end
+    end)
+    btn.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            flyDown = false
+        end
+    end)
+    btn.MouseButton1Down:Connect(function() flyDown = true end)
+    btn.MouseButton1Up:Connect(function() flyDown = false end)
+    btn.MouseLeave:Connect(function() flyDown = false end)
+end
+
+bindUp(upBtn)
+bindDown(downBtn)
+
+local flyDragging = false
+local function updateFlySpeed(x)
+    local rel = (x - flyBar.AbsolutePosition.X) / flyBar.AbsoluteSize.X
+    if rel < 0 then rel = 0 elseif rel > 1 then rel = 1 end
+    flyFill.Size = UDim2.new(rel, 0, 1, 0)
+    local v = math.floor(10 + (300 - 10) * rel + 0.5)
+    Config.FlySpeed = v
+    flySpeedLabel.Text = "速度: " .. v
+end
+
+flyBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        flyDragging = true
+        updateFlySpeed(input.Position.X)
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if flyDragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        updateFlySpeed(input.Position.X)
+    end
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        flyDragging = false
+    end
+end)
+
+bindDrag(flyTitle,
+    function() return flyUI.Position end,
+    function(pos, startPos, startVal)
+        local d = pos - startPos
+        flyUI.Position = UDim2.new(startVal.X.Scale, startVal.X.Offset + d.X,
+                                    startVal.Y.Scale, startVal.Y.Offset + d.Y)
+    end
+)
+
+closeFly.MouseButton1Click:Connect(function()
+    setFlyEnabled(false)
+    flyUI.Visible = false
+end)
+
+flySwitchBtn.MouseButton1Click:Connect(function()
+    local cur = (flySwitchBtn.Text == "ON")
+    setFlyEnabled(not cur)
+end)
+
+local sideButtons = {}
+local switchPage
+
+local pages = {}
+pages["透视"] = function()
+    createToggle(content, "启用透视", Config.ESP, function(v) Config.ESP = v end)
+    createToggle(content, "队伍识别", Config.Team, function(v) Config.Team = v end)
+end
+pages["飞行"] = function()
+    mainFlyToggle = createToggle(content, "启用飞行", Config.Fly, function(v)
+        setFlyEnabled(v)
+    end)
+    createSlider(content, "飞行速度", 10, 300, Config.FlySpeed, false, function(v)
+        Config.FlySpeed = v
+        flySpeedLabel.Text = "速度: " .. v
+        flyFill.Size = UDim2.new((v - 10) / (300 - 10), 0, 1, 0)
+    end)
+end
+pages["移速"] = function()
+    createToggle(content, "启用移速", Config.Speed, function(v)
+        Config.Speed = v
+        applySpeed()
+    end)
+    createSlider(content, "移速值", 16, 200, Config.SpeedVal, false, function(v)
+        Config.SpeedVal = v
+        applySpeed()
+    end)
+end
+pages["跳跃"] = function()
+    createToggle(content, "启用跳跃", Config.JumpEnabled, function(v)
+        Config.JumpEnabled = v
+        applyJump()
+    end)
+    createSlider(content, "跳跃高度", 50, 500, Config.JumpValue, false, function(v)
+        Config.JumpValue = v
+        applyJump()
+    end)
+end
+pages["旋转"] = function()
+    createToggle(content, "启用旋转", Config.RotateEnabled, function(v)
+        Config.RotateEnabled = v
+        updateRotate()
+    end)
+    createSlider(content, "旋转速度", 10, 720, Config.RotateSpeed, false, function(v)
+        Config.RotateSpeed = v
+    end)
+end
+
+switchPage = function(name)
+    clearContent()
+    local build = pages[name]
+    if build then build() end
+end
+local function createSideButton(name)
+    local wrapper = Instance.new("Frame")
+    wrapper.Size = UDim2.new(1, 0, 0, 32)
+    wrapper.BackgroundTransparency = 1
+    wrapper.ZIndex = 6
+    wrapper.Parent = sidebar
+
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(0, 3, 0, 16)
+    bar.Position = UDim2.new(0, 0, 0.5, -8)
+    bar.BackgroundColor3 = THEME.ACCENT
+    bar.BorderSizePixel = 0
+    bar.ZIndex = 8
+    bar.Visible = false
+    bar.Parent = wrapper
+
+    local bc = Instance.new("UICorner")
+    bc.CornerRadius = UDim.new(1, 0)
+    bc.Parent = bar
+
+    local b = Instance.new("TextButton")
+    b.Size = UDim2.new(1, 0, 1, 0)
+    b.BackgroundColor3 = THEME.SIDEBAR
+    b.Text = name
+    b.TextColor3 = THEME.SUBTEXT
+    b.TextSize = 13
+    b.Font = Enum.Font.GothamMedium
+    b.BorderSizePixel = 0
+    b.ZIndex = 7
+    b.Parent = wrapper
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 8)
+    c.Parent = b
+
+    b.MouseButton1Click:Connect(function()
+        switchPage(name)
+        for _, o in ipairs(sideButtons) do
+            o.btn.BackgroundColor3 = THEME.SIDEBAR
+            o.btn.TextColor3 = THEME.SUBTEXT
+            o.bar.Visible = false
+        end
+        b.BackgroundColor3 = THEME.BG
+        b.TextColor3 = THEME.TEXT
+        bar.Visible = true
+    end)
+    table.insert(sideButtons, { btn = b, bar = bar })
+    return b
+end
+
+createSideButton("透视")
+createSideButton("飞行")
+createSideButton("移速")
+createSideButton("跳跃")
+createSideButton("旋转")
+switchPage("透视")
+if sideButtons[1] then
+    sideButtons[1].btn.BackgroundColor3 = THEME.BG
+    sideButtons[1].btn.TextColor3 = THEME.TEXT
+    sideButtons[1].bar.Visible = true
+end
+
+bindDrag(topbar,
+    function() return window.Position end,
+    function(pos, startPos, startVal)
+        local d = pos - startPos
+        window.Position = UDim2.new(startVal.X.Scale, startVal.X.Offset + d.X,
+                                     startVal.Y.Scale, startVal.Y.Offset + d.Y)
+    end
+)
+local miniLabel = Instance.new("TextButton")
+miniLabel.Size = UDim2.new(0, 106, 0, 32)
+miniLabel.Position = UDim2.new(0, 12, 0, 12)
+miniLabel.BackgroundColor3 = THEME.BG
+miniLabel.Text = "土豆脚本"
+miniLabel.TextColor3 = THEME.ACCENT
+miniLabel.TextSize = 14
+miniLabel.Font = Enum.Font.GothamBold
+miniLabel.BorderSizePixel = 0
+miniLabel.AutoButtonColor = false
+miniLabel.Visible = false
+miniLabel.Active = true
+miniLabel.ZIndex = 30
+miniLabel.Parent = gui
+
+local mlc = Instance.new("UICorner")
+mlc.CornerRadius = UDim.new(0, 8)
+mlc.Parent = miniLabel
+
+local mls = Instance.new("UIStroke")
+mls.Color = THEME.BORDER
+mls.Parent = miniLabel
+
+local miniDrag = false
+local miniStartPos = nil
+local miniStartVal = nil
+local miniMoved = false
+local miniStartTime = 0
+
+miniLabel.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        miniDrag = true
+        miniMoved = false
+        miniStartTime = tick()
+        miniStartPos = input.Position
+        miniStartVal = miniLabel.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if miniDrag and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - miniStartPos
+        if math.abs(d.X) > 5 or math.abs(d.Y) > 5 then miniMoved = true end
+        miniLabel.Position = UDim2.new(miniStartVal.X.Scale, miniStartVal.X.Offset + d.X,
+                                        miniStartVal.Y.Scale, miniStartVal.Y.Offset + d.Y)
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if (input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch) and miniDrag then
+        miniDrag = false
+        if not miniMoved and (tick() - miniStartTime) < 1 then
+            window.Position = UDim2.new(
+                miniLabel.Position.X.Scale, miniLabel.Position.X.Offset,
+                miniLabel.Position.Y.Scale, miniLabel.Position.Y.Offset)
+            window.Visible = true
+            miniLabel.Visible = false
+        end
+    end
+end)
+
+minBtn.MouseButton1Click:Connect(function()
+    miniLabel.Position = window.Position
+    window.Visible = false
+    miniLabel.Visible = true
+end)
+
+LP.CharacterAdded:Connect(function()
+    stopFly()
+    stopRotate()
+    wait(0.6)
+    applySpeed()
+    applyJump()
+    if Config.Fly then startFly() end
+    if Config.RotateEnabled then startRotate() end
+end)
+
+print("[土豆脚本 v8.0] 加载完成 ✅")
